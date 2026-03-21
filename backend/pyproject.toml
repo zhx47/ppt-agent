@@ -1,0 +1,30 @@
+[project]
+name = "ppt-agent-backend"
+version = "0.1.0"
+description = "AI PPT agent backend service"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+  "sqlalchemy>=2.0.0",
+  "pydantic-settings>=2.0.0",
+  "psycopg[binary]>=3.1.0",
+  "redis>=5.0.0",
+  "httpx>=0.27.0",
+  "openai>=2.0.0",
+  "structlog>=25.0.0",
+  "orjson>=3.10.0",
+  "python-multipart>=0.0.9",
+  "sse-starlette>=2.0.0",
+  "python-pptx>=1.0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
