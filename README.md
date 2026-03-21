@@ -2,7 +2,7 @@
 
 PPT Agent 是一个面向 AI PPT 生成的工作台项目。它不是简单把一段提示词丢给模型然后吐出几页 SVG，而是把项目初始化、资料搜索、页级研究、初稿生成、设计稿生成和 PPTX 导出串成一条可观察、可干预、可回放的 agent workflow。
 
-仓库 slug 和前端 package 名使用 `ppt-agent`，对外项目名称保持为 `PPT Agent`。
+通过联网搜索（bocha） + 向量化产出 SVG 完成整个PPT的产出，可以通过新版本 PPT 进行转换成形状进行编辑。 
 
 当前仓库包含两部分：
 
@@ -165,3 +165,16 @@ $env:VITE_API_PROXY_TARGET="http://your-backend-host:8000"
 本项目基于 Apache-2.0 License 开源，详见 [LICENSE](LICENSE)。
 
 感谢[Sandun佬友](https://linux.do/t/topic/1782304)开源的思路和提示词
+
+
+## 成品示例
+
+下面这份示例成品展示了 PPT Agent 的最终导出效果，主题是“介绍一下 Dify”。无人工做任何调整跑完一次流程的产物。
+
+模型使用：gpt-5-nano + gemini-3-flash-preview
+
+- PPTX 原文件：[docs/images/介绍一下dify.pptx](docs/images/介绍一下dify.pptx)
+
+![PPT Agent 示例成品：介绍一下 Dify](docs/images/介绍一下dify.png)
+
+如果你想直接评估导出质量、排版密度和页面组织，不用先启动整套链路，直接打开这份 `.pptx` 原文件就够了。
