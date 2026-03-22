@@ -85,30 +85,6 @@ function mergeStepStates(existing: AgentStepState[], incoming: AgentStepState): 
   return next;
 }
 
-function mergeExecutionPlan(
-  existing: AgentStepState[],
-  executionPlan: unknown,
-): AgentStepState[] {
-  if (!Array.isArray(executionPlan)) {
-    return existing;
-  }
-  return executionPlan.reduce<AgentStepState[]>((current, rawItem) => {
-    if (!isRecord(rawItem)) {
-      return current;
-    }
-    const stepCode = String(rawItem.step_code ?? '').trim();
-    if (!stepCode) {
-      return current;
-    }
-    return mergeStepStates(current, {
-      step_code: stepCode,
-      step_name: String(rawItem.step_name ?? stepCode).trim(),
-      status: 'pending',
-      reason: typeof rawItem.reason === 'string' ? rawItem.reason : undefined,
-    });
-  }, existing);
-}
-
 function inferRunStatus(run: AgentRunView): AgentRunView['run_status'] {
   if (run.step_results.some((item) => item.status === 'failed')) {
     return 'failed';
@@ -153,7 +129,6 @@ export function reduceAgentRunMap(
 
   if (event.event_type === 'router.decision') {
     next.router_decision = payload;
-    next.step_results = mergeExecutionPlan(existing.step_results, payload.execution_plan);
   }
 
   if (event.event_type === 'action.step.started') {
@@ -204,14 +179,11 @@ export function agentRunFromMessage(message: ProjectMessage): AgentRunView | nul
     return null;
   }
 
-  const executionPlan = Array.isArray(message.structured_payload_json.execution_plan)
-    ? message.structured_payload_json.execution_plan
-    : [];
   const completedSteps = Array.isArray(message.structured_payload_json.step_results)
     ? message.structured_payload_json.step_results
     : [];
 
-  let stepResults = mergeExecutionPlan([], executionPlan);
+  let stepResults: AgentStepState[] = [];
   for (const rawStep of completedSteps) {
     if (!isRecord(rawStep)) {
       continue;
@@ -299,8 +271,21 @@ function renderStepStatus(step: AgentStepState): string {
   return '待执行';
 }
 
-export function AgentActivityCard({ run, accent = 'blue' }: { run: AgentRunView; accent?: 'blue' | 'emerald' }) {
+export function AgentActivityCard({
+  run,
+  accent = 'blue',
+  onRecommendationClick,
+  recommendationsDisabled = false,
+}: {
+  run: AgentRunView;
+  accent?: 'blue' | 'emerald';
+  onRecommendationClick?: (recommendation: AgentRecommendation) => void;
+  recommendationsDisabled?: boolean;
+}) {
   const tone = getRunTone(run, accent);
+  const visibleStepResults = run.live
+    ? run.step_results
+    : run.step_results.filter((item) => item.status !== 'pending');
   const decisionReason =
     run.router_decision && typeof run.router_decision.reason === 'string'
       ? run.router_decision.reason
@@ -336,9 +321,9 @@ export function AgentActivityCard({ run, accent = 'blue' }: { run: AgentRunView;
         </div>
       ) : null}
 
-      {run.step_results.length ? (
+      {visibleStepResults.length ? (
         <div className="space-y-2">
-          {run.step_results.map((step) => {
+          {visibleStepResults.map((step) => {
             const resultText = compactResult(step.result);
             const progressCurrent = step.progress?.current ?? 0;
             const progressTotal = step.progress?.total ?? 0;
@@ -391,15 +376,31 @@ export function AgentActivityCard({ run, accent = 'blue' }: { run: AgentRunView;
       {run.next_recommendations.length ? (
         <div className="space-y-2">
           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">下一步建议</div>
-          {run.next_recommendations.map((item) => (
-            <div key={item.code} className="rounded-xl border border-slate-100 px-3 py-3 bg-white">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                <Bot size={14} className="text-slate-400" />
-                {item.label}
+          {run.next_recommendations.map((item) =>
+            onRecommendationClick ? (
+              <button
+                type="button"
+                key={item.code}
+                disabled={recommendationsDisabled}
+                onClick={() => onRecommendationClick(item)}
+                className="w-full rounded-xl border border-slate-100 px-3 py-3 bg-white text-left transition-colors hover:border-blue-200 hover:bg-blue-50/40 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Bot size={14} className="text-slate-400" />
+                  {item.label}
+                </div>
+                <div className="mt-1 text-xs text-slate-500 leading-relaxed">{item.reason}</div>
+              </button>
+            ) : (
+              <div key={item.code} className="rounded-xl border border-slate-100 px-3 py-3 bg-white">
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Bot size={14} className="text-slate-400" />
+                  {item.label}
+                </div>
+                <div className="mt-1 text-xs text-slate-500 leading-relaxed">{item.reason}</div>
               </div>
-              <div className="mt-1 text-xs text-slate-500 leading-relaxed">{item.reason}</div>
-            </div>
-          ))}
+            ),
+          )}
         </div>
       ) : null}
     </div>

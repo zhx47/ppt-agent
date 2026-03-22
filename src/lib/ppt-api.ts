@@ -188,6 +188,8 @@ export interface PageSummary {
   current_brief_version_id: string | null;
   current_draft_version_id: string | null;
   current_design_version_id: string | null;
+  draft_preview_svg_markup?: string | null;
+  design_preview_svg_markup?: string | null;
   preview_surface?: PreviewSurface;
   preview_svg_markup?: string | null;
   created_at: string;

@@ -120,28 +120,56 @@ export const SvgCanvas: FC<{ markup: string | null; placeholder: string }> = ({ 
   );
 };
 
-function pagePreviewLabel(page: PageSummary): string {
-  if (page.preview_surface === 'design') return '设计稿';
-  if (page.preview_surface === 'draft') return '初稿';
-  return '文档';
+function pagePreviewLabel(surface: EditorSurface): string {
+  if (surface === 'design') return '设计稿';
+  if (surface === 'draft') return '初稿';
+  return '要点';
 }
 
-function pagePreviewTone(page: PageSummary): string {
-  if (page.preview_surface === 'design') return 'bg-emerald-500/90 text-white';
-  if (page.preview_surface === 'draft') return 'bg-blue-500/90 text-white';
+function pagePreviewTone(surface: EditorSurface): string {
+  if (surface === 'design') return 'bg-emerald-500/90 text-white';
+  if (surface === 'draft') return 'bg-blue-500/90 text-white';
   return 'bg-slate-800/60 text-white';
+}
+
+function pageSurfaceMarkup(page: PageSummary, surface: EditorSurface): string | null {
+  if (surface === 'draft') {
+    return page.draft_preview_svg_markup ?? null;
+  }
+  if (surface === 'design') {
+    return page.design_preview_svg_markup ?? null;
+  }
+  return null;
+}
+
+function pageSurfacePlaceholder(page: PageSummary, surface: EditorSurface): string {
+  if (surface === 'draft') {
+    if (page.draft_status === 'running') return '初稿生成中';
+    if (page.draft_status === 'failed') return '初稿生成失败';
+    return '初稿尚未生成';
+  }
+  if (surface === 'design') {
+    if (page.design_status === 'running') return '设计稿生成中';
+    if (page.design_status === 'failed') return '设计稿生成失败';
+    return '设计稿尚未生成';
+  }
+  return '无要点';
 }
 
 export const PageThumbnail: FC<{
   page: PageSummary;
+  surface: EditorSurface;
   active: boolean;
   onClick: () => void;
 }> = ({
   page,
+  surface,
   active,
   onClick,
 }) => {
-  const hasSvgPreview = Boolean(page.preview_svg_markup);
+  const surfaceMarkup = pageSurfaceMarkup(page, surface);
+  const hasSvgPreview = Boolean(surfaceMarkup);
+  const showOverlayBadges = hasSvgPreview;
   return (
     <div
       onClick={onClick}
@@ -149,18 +177,22 @@ export const PageThumbnail: FC<{
         active ? 'border-blue-500 shadow-md shadow-blue-100' : 'border-slate-100 hover:border-slate-300'
       }`}
     >
-      <div className="absolute top-1.5 left-1.5 bg-slate-800/60 text-white text-[10px] px-1.5 py-0.5 rounded-md backdrop-blur-md font-medium z-10">
-        {page.sort_order}
-      </div>
-      <div className={`absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0.5 rounded-md backdrop-blur-md font-medium z-10 ${pagePreviewTone(page)}`}>
-        {pagePreviewLabel(page)}
-      </div>
+      {showOverlayBadges ? (
+        <>
+          <div className="absolute top-1.5 left-1.5 bg-slate-800/60 text-white text-[10px] px-1.5 py-0.5 rounded-md backdrop-blur-md font-medium z-10">
+            {page.sort_order}
+          </div>
+          <div className={`absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0.5 rounded-md backdrop-blur-md font-medium z-10 ${pagePreviewTone(surface)}`}>
+            {pagePreviewLabel(surface)}
+          </div>
+        </>
+      ) : null}
       <div className="aspect-video bg-slate-50 relative">
         {hasSvgPreview ? (
           <>
             <div
               className="absolute inset-0 bg-white [&_svg]:h-full [&_svg]:w-full"
-              dangerouslySetInnerHTML={{ __html: page.preview_svg_markup ?? '' }}
+              dangerouslySetInnerHTML={{ __html: surfaceMarkup ?? '' }}
             />
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-transparent px-3 pb-2 pt-8">
               <div className="text-[10px] uppercase tracking-wide text-white/70">{page.page_role}</div>
@@ -168,18 +200,55 @@ export const PageThumbnail: FC<{
             </div>
           </>
         ) : (
-          <div className="flex h-full flex-col p-3">
-            <div className="text-[10px] uppercase tracking-wide text-slate-400 mb-2">{page.page_role}</div>
-            <div className="text-xs font-semibold text-slate-700 leading-5 line-clamp-2">{page.title}</div>
-            <div className="mt-2 space-y-1.5">
-              {page.content_outline.slice(0, 2).map((item) => (
-                <div key={item} className="text-[11px] leading-4 text-slate-400 line-clamp-1">
-                  {item}
+          surface === 'search' ? (
+            <div className="flex h-full flex-col p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="rounded-md bg-slate-800/75 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                    {page.sort_order}
+                  </span>
+                  <span className="truncate text-[10px] uppercase tracking-wide text-slate-400">
+                    {page.page_role}
+                  </span>
                 </div>
-              ))}
-              {page.content_outline.length === 0 ? <div className="text-[11px] leading-4 text-slate-400">无要点</div> : null}
+                <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${pagePreviewTone(surface)}`}>
+                  {pagePreviewLabel(surface)}
+                </span>
+              </div>
+              <div className="mt-2 overflow-hidden">
+                <div className="text-xs font-semibold text-slate-700 leading-4 line-clamp-2">{page.title}</div>
+              </div>
+              <div className="relative mt-0.5 overflow-hidden">
+                {page.content_outline.length > 0 ? (
+                  <div className="text-[11px] leading-4 text-slate-400 line-clamp-2">
+                    {page.content_outline[0]}
+                  </div>
+                ) : (
+                  <div className="text-[11px] leading-4 text-slate-400">无要点</div>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+              <div className="flex w-full items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="rounded-md bg-slate-800/75 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                    {page.sort_order}
+                  </span>
+                  <span className="truncate text-[10px] uppercase tracking-wide text-slate-400">
+                    {page.page_role}
+                  </span>
+                </div>
+                <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${pagePreviewTone(surface)}`}>
+                  {pagePreviewLabel(surface)}
+                </span>
+              </div>
+              <div className="mt-2 text-xs font-semibold text-slate-700 leading-4 line-clamp-3">{page.title}</div>
+              <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white/80 px-3 py-2 text-[11px] leading-4 text-slate-400">
+                {pageSurfacePlaceholder(page, surface)}
+              </div>
+            </div>
+          )
         )}
       </div>
     </div>

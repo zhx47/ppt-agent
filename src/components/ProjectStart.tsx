@@ -30,7 +30,7 @@ import {
   type RequirementQuestion,
 } from '../lib/ppt-api';
 import { createSingleFlightRunner } from '../lib/single-flight';
-import { summarizeSourcePipeline, shouldRefreshFromEvent } from '../lib/workflow-ui';
+import { mergeMessageList, summarizeSourcePipeline, shouldRefreshFromEvent } from '../lib/workflow-ui';
 import { AgentActivityCard, agentRunFromMessage, reduceAgentRunMap, type AgentRunView } from './AgentActivity';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -290,7 +290,7 @@ export default function ProjectStart({
         }
         onProjectUpdated(projectResponse);
         setForm(formResponse.requirement_form);
-        setMessages(messageResponse.items);
+        setMessages((current) => mergeMessageList(current, messageResponse.items));
         setError(null);
       } catch (caughtError) {
         if (!cancelled) {
@@ -424,9 +424,9 @@ export default function ProjectStart({
     }
   };
 
-  const handleSendMessage = async () => {
-    const content = chatInput.trim();
-    if (!content || isSendingMessage) {
+  const sendMessage = async (content: string, options?: { clearInput?: boolean }) => {
+    const normalizedContent = content.trim();
+    if (!normalizedContent || isSendingMessage) {
       return;
     }
     setIsSendingMessage(true);
@@ -435,16 +435,22 @@ export default function ProjectStart({
         scope_type: 'project',
         target_page_id: null,
         ui_surface: 'init',
-        content_md: content,
+        content_md: normalizedContent,
       });
-      setMessages((current) => [...current, message]);
-      setChatInput('');
+      setMessages((current) => mergeMessageList(current, [message]));
+      if (options?.clearInput) {
+        setChatInput((current) => (current.trim() === normalizedContent ? '' : current));
+      }
       setError(null);
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, '消息发送失败'));
     } finally {
       setIsSendingMessage(false);
     }
+  };
+
+  const handleSendMessage = async () => {
+    await sendMessage(chatInput, {clearInput: true});
   };
 
   const handleConfirm = async () => {
@@ -753,7 +759,13 @@ export default function ProjectStart({
             {timelineItems.map((item) =>
               item.type === 'run' ? (
                 <div key={item.key} className="flex justify-start">
-                  <AgentActivityCard run={item.run} />
+                  <AgentActivityCard
+                    run={item.run}
+                    onRecommendationClick={(recommendation) => {
+                      void sendMessage(recommendation.label);
+                    }}
+                    recommendationsDisabled={isSendingMessage}
+                  />
                 </div>
               ) : item.message.role === 'user' ? (
                 <div key={item.key} className="flex justify-end">
@@ -764,7 +776,13 @@ export default function ProjectStart({
               ) : (
                 <div key={item.key} className="flex justify-start">
                   {agentRunFromMessage(item.message) ? (
-                    <AgentActivityCard run={{...agentRunFromMessage(item.message)!, content_md: item.message.content_md}} />
+                    <AgentActivityCard
+                      run={{...agentRunFromMessage(item.message)!, content_md: item.message.content_md}}
+                      onRecommendationClick={(recommendation) => {
+                        void sendMessage(recommendation.label);
+                      }}
+                      recommendationsDisabled={isSendingMessage}
+                    />
                   ) : (
                     <div className="w-full max-w-[95%] space-y-3 rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-5 py-4 shadow-sm">
                       <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
@@ -860,9 +878,18 @@ export default function ProjectStart({
             {form?.suggested_actions.length ? (
               <div className="flex flex-wrap gap-2">
                 {form.suggested_actions.map((item) => (
-                  <div key={item.code} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
+                  <button
+                    type="button"
+                    key={item.code}
+                    title={item.reason}
+                    disabled={isSendingMessage}
+                    onClick={() => {
+                      void sendMessage(item.label);
+                    }}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     {item.label}
-                  </div>
+                  </button>
                 ))}
               </div>
             ) : null}

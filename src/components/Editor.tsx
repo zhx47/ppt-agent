@@ -42,7 +42,7 @@ import {
   type UiSurface,
 } from '../lib/ppt-api';
 import { createSingleFlightRunner } from '../lib/single-flight';
-import { summarizeSourcePipeline, shouldRefreshFromEvent } from '../lib/workflow-ui';
+import { mergeMessageList, summarizeSourcePipeline, shouldRefreshFromEvent } from '../lib/workflow-ui';
 import { AgentActivityCard, agentRunFromMessage, reduceAgentRunMap, type AgentRunView } from './AgentActivity';
 import { DataModal, PageThumbnail, renderStageBadge, renderStatusPill, SearchResultCard, SvgCanvas, type EditorSurface } from './editor/EditorBits';
 import PresentationPlayer, { type PresentationSlide, type PresentationSurface } from './editor/PresentationPlayer';
@@ -181,7 +181,7 @@ export default function Editor({
         ]);
         if (cancelled) return;
         onProjectUpdated(projectResponse);
-        setMessages(messageResponse.items);
+        setMessages((current) => mergeMessageList(current, messageResponse.items));
         setPages(pagesResponse.items);
         setOutline(outlineResponse);
         const nextId = activePageIdRef.current && pagesResponse.items.some((item) => item.page_id === activePageIdRef.current)
@@ -258,25 +258,31 @@ export default function Editor({
     }
   };
 
-  const handleSendMessage = async () => {
-    const content = chatInput.trim();
-    if (!content || isSendingMessage || !activePage) return;
+  const sendMessage = async (content: string, options?: { clearInput?: boolean }) => {
+    const normalizedContent = content.trim();
+    if (!normalizedContent || isSendingMessage || !activePage) return;
     setIsSendingMessage(true);
     try {
       const message = await createMessage(project.project_id, {
         scope_type: 'page',
         target_page_id: activePage.page_id,
         ui_surface: surface as UiSurface,
-        content_md: content,
+        content_md: normalizedContent,
       });
-      setMessages((current) => [...current, message]);
-      setChatInput('');
+      setMessages((current) => mergeMessageList(current, [message]));
+      if (options?.clearInput) {
+        setChatInput((current) => (current.trim() === normalizedContent ? '' : current));
+      }
       setError(null);
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, '消息发送失败'));
     } finally {
       setIsSendingMessage(false);
     }
+  };
+
+  const handleSendMessage = async () => {
+    await sendMessage(chatInput, {clearInput: true});
   };
 
   const runAction = async (runner: () => Promise<unknown>) => {
@@ -500,7 +506,7 @@ export default function Editor({
         <div className="w-56 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm">
           <div className="p-4 flex justify-between items-center border-b border-slate-100 text-sm"><span className="font-semibold text-slate-800">幻灯片</span><span className="text-slate-400 font-medium">共 {pages.length} 张</span></div>
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {pages.map((page) => <PageThumbnail key={page.page_id} page={page} active={page.page_id === activePage?.page_id} onClick={() => void runAction(() => handleOpenPage(page.page_id))} />)}
+            {pages.map((page) => <PageThumbnail key={page.page_id} page={page} surface={surface} active={page.page_id === activePage?.page_id} onClick={() => void runAction(() => handleOpenPage(page.page_id))} />)}
           </div>
         </div>
 
@@ -548,7 +554,13 @@ export default function Editor({
             {timelineItems.map((item) =>
               item.type === 'run' ? (
                 <div key={item.key} className="flex justify-start">
-                  <AgentActivityCard run={item.run} />
+                  <AgentActivityCard
+                    run={item.run}
+                    onRecommendationClick={(recommendation) => {
+                      void sendMessage(recommendation.label);
+                    }}
+                    recommendationsDisabled={isSendingMessage || !activePage}
+                  />
                 </div>
               ) : item.message.role === 'user' ? (
                 <div key={item.key} className="flex justify-end">
@@ -556,7 +568,7 @@ export default function Editor({
                 </div>
               ) : (
                 <div key={item.key} className="flex justify-start">
-                  {agentRunFromMessage(item.message) ? <AgentActivityCard run={{...agentRunFromMessage(item.message)!, content_md: item.message.content_md}} accent="emerald" /> : <div className="bg-white border border-slate-200 shadow-sm px-5 py-4 rounded-2xl rounded-tl-sm max-w-[95%] w-full"><p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{item.message.content_md}</p></div>}
+                  {agentRunFromMessage(item.message) ? <AgentActivityCard run={{...agentRunFromMessage(item.message)!, content_md: item.message.content_md}} accent="emerald" onRecommendationClick={(recommendation) => { void sendMessage(recommendation.label); }} recommendationsDisabled={isSendingMessage || !activePage} /> : <div className="bg-white border border-slate-200 shadow-sm px-5 py-4 rounded-2xl rounded-tl-sm max-w-[95%] w-full"><p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{item.message.content_md}</p></div>}
                 </div>
               ),
             )}
