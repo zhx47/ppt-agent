@@ -160,11 +160,13 @@ $env:VITE_API_PROXY_TARGET="http://your-backend-host:8000"
 
 感谢 [linuxdo](https://linux.do) 社区的交流、分享与反馈，让 PPT Agent 的迭代更高效。
 
+感谢[Sandun佬友](https://linux.do/t/topic/1782304)开源的思路和提示词
+
+前端设计原稿为帖内分享的截图进行整理和归纳，更好的原始项目体验可以前往佬友的商业化项目： [SANDUN - PPT Design Agent](https://sandun.cc)
+
 ## License
 
 本项目基于 Apache-2.0 License 开源，详见 [LICENSE](LICENSE)。
-
-感谢[Sandun佬友](https://linux.do/t/topic/1782304)开源的思路和提示词
 
 
 ## 成品示例
